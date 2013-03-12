@@ -27,6 +27,7 @@ class DatatablesView(MultipleObjectMixin, View):
     '''
     fields = []
     search_fields = []
+    _callables = None
     _db_fields = None
     _db_search_fields = None
 
@@ -39,10 +40,24 @@ class DatatablesView(MultipleObjectMixin, View):
     def process_dt_response(self, data):
         self.form = DatatablesForm(data)
         if self.form.is_valid():
-            self.object_list = self.get_queryset().values(*self.get_db_fields())
+            qs = self.get_queryset()
+            # convert to a list so you can reassign entries
+            self.object_list = list(qs.values(*self.get_db_fields()))
+            if self.get_callables():
+                for i, obj in enumerate(qs):
+                    for key, f in self.get_callables().items():
+                        self.object_list[i][key] = f(obj)
             return self.render_to_response(self.form)
         else:
             return HttpResponseBadRequest()
+
+    def get_callables(self):
+        if isinstance(self.fields, dict) and not self._callables:
+            self._callables = dict([
+                (key, value) for key, value in self.fields.items()
+                if hasattr(value, '__call__')
+            ])
+        return self._callables
 
     def get_db_fields(self):
         if not self._db_fields:
@@ -59,6 +74,8 @@ class DatatablesView(MultipleObjectMixin, View):
         out_fields = []
         fields = fields.values() if isinstance(fields, dict) else fields
         for field in fields:
+            if not isinstance(field, basestring):
+                continue
             if RE_FORMATTED.match(field):
                 out_fields.extend(RE_FORMATTED.findall(field))
             else:
@@ -161,10 +178,13 @@ class DatatablesView(MultipleObjectMixin, View):
         '''Format a single row (if necessary)'''
 
         if isinstance(self.fields, dict):
-            return dict([
-                (key, unicode(value).format(**row) if RE_FORMATTED.match(value) else row[value])
-                for key, value in self.fields.items()
-            ])
+            d = {}
+            for key, value in self.fields.items():
+                if isinstance(value, basestring):
+                    d[key] = unicode(value).format(**row) if RE_FORMATTED.match(value) else row[value]
+                elif hasattr(value, '__call__'):
+                    d[key] = row[key]
+            return d
         else:
             return [unicode(field).format(**row) if RE_FORMATTED.match(field) else row[field] for field in self.fields]
 
