@@ -26,7 +26,9 @@ class DatatablesView(MultipleObjectMixin, View):
     See: http://www.datatables.net/usage/server-side
     '''
     fields = []
+    search_fields = []
     _db_fields = None
+    _db_search_fields = None
 
     def post(self, request, *args, **kwargs):
         return self.process_dt_response(request.POST)
@@ -44,14 +46,24 @@ class DatatablesView(MultipleObjectMixin, View):
 
     def get_db_fields(self):
         if not self._db_fields:
-            self._db_fields = []
-            fields = self.fields.values() if isinstance(self.fields, dict) else self.fields
-            for field in fields:
-                if RE_FORMATTED.match(field):
-                    self._db_fields.extend(RE_FORMATTED.findall(field))
-                else:
-                    self._db_fields.append(field)
+            self._db_fields = self._get_fields(self.fields)
         return self._db_fields
+
+    def get_search_fields(self):
+        if not self._db_search_fields:
+            self._db_search_fields = self._get_fields(self.search_fields or
+                                                      self.fields)
+        return self._db_search_fields
+
+    def _get_fields(self, fields):
+        out_fields = []
+        fields = fields.values() if isinstance(fields, dict) else fields
+        for field in fields:
+            if RE_FORMATTED.match(field):
+                out_fields.extend(RE_FORMATTED.findall(field))
+            else:
+                out_fields.append(field)
+        return out_fields
 
     @property
     def dt_data(self):
@@ -91,12 +103,12 @@ class DatatablesView(MultipleObjectMixin, View):
         search = self.dt_data['sSearch']
         if search:
             if self.dt_data['bRegex']:
-                criterions = (Q(**{'%s__iregex' % field: search}) for field in self.get_db_fields())
+                criterions = (Q(**{'%s__iregex' % field: search}) for field in self.get_search_fields())
                 search = reduce(or_, criterions)
                 queryset = queryset.filter(search)
             else:
                 for term in search.split():
-                    criterions = (Q(**{'%s__icontains' % field: term}) for field in self.get_db_fields())
+                    criterions = (Q(**{'%s__icontains' % field: term}) for field in self.get_search_fields())
                     search = reduce(or_, criterions)
                     queryset = queryset.filter(search)
         return queryset

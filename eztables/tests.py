@@ -453,6 +453,23 @@ class DatatablesTestMixin(object):
         for row in data['aaData']:
             self.assertEqual(self.value(row, ENGINE_NAME), 'engine')
 
+    def test_global_search_custom_fields(self):
+        '''Should do a global search on custom ``search_fields``'''
+        for _ in xrange(2):
+            BrowserFactory(name='test')
+        for _ in xrange(3):
+            BrowserFactory(engine__name='engine')
+
+        response = self.get_response('browsers', self.build_query(sSearch='test'))
+        data = json.loads(response.content)
+        self.assertEqual(len(data['aaData']), 0)
+
+        response = self.get_response('browsers', self.build_query(sSearch='engine'))
+        data = json.loads(response.content)
+        self.assertEqual(len(data['aaData']), 3)
+        for row in data['aaData']:
+            self.assertEqual(self.value(row, ENGINE_NAME), 'engine')
+
     def test_global_search_many_terms(self):
         '''Should do a global search on many terms'''
         for _ in xrange(2):

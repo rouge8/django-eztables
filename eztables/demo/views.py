@@ -90,6 +90,7 @@ class FormattedObjectBrowserDatatablesView(DatatablesView):
 
 
 class CustomSearchSort(object):
+    search_fields = ['engine__name']
 
     def sort_col_1(self, direction):
         '''Sort on version instead of name'''
